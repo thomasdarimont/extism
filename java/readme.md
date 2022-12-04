@@ -45,7 +45,7 @@ java \
   --enable-native-access=ALL-UNNAMED \
   --enable-preview \
   -cp target/classes \
-  -Djava.library.path=../target/release/libextism.so \
+  -Djava.library.path=../target/release \
   -Dinput="AABBCCDDEE" \
   com.github.extism.demo.ExtismDemo
 ```

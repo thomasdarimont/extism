@@ -13,9 +13,7 @@ public class ExtismDemo {
     
     public static void main(String[] args) throws Exception {
         
-
-        var libaryPath = Path.of("../target/release/libextism.so").toFile().getAbsolutePath();
-        System.load(libaryPath);
+        System.loadLibrary("extism");
 
         var input = System.getProperty("input","hello world");
         var funcName = System.getProperty("funcName", "count_vowels");
