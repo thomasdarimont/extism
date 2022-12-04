@@ -10,39 +10,52 @@ import java.nio.file.Path;
 import com.github.extism.extism_h;
 
 public class ExtismDemo {
-    
+
     public static void main(String[] args) throws Exception {
-        
-        System.loadLibrary("extism");
 
-        var input = System.getProperty("input","hello world");
+        var wasmPath = Path.of(System.getProperty("wasmPath", "../wasm/code.wasm"));
         var funcName = System.getProperty("funcName", "count_vowels");
-        var wasmPath = Path.of(System.getProperty("wasmPath","../wasm/code.wasm"));
+        var input = System.getProperty("input", "hello world");
 
-        try (var scope = ResourceScope.newConfinedScope()) {
-            
-            var wasmBytesLength = Files.size(wasmPath);
-            var mappedWasm = MemorySegment.mapFile(wasmPath, 0, wasmBytesLength,FileChannel.MapMode.READ_ONLY, scope);
+        var output = Extism.executeFunction(wasmPath, funcName, input);
 
-            var strAddr = MemorySegment.allocateNative(input.getBytes().length*2, scope);
-            strAddr.setUtf8String(0, input);
+        System.out.println(output);
 
-            var context = extism_h.extism_context_new();
-            var plugin = extism_h.extism_plugin_new(context, mappedWasm.address(), wasmBytesLength, false);
+    }
 
-            var funcNameAddr = MemorySegment.allocateNative(input.getBytes().length*2, scope);
-            funcNameAddr.setUtf8String(0, funcName);
-            
-            var result = extism_h.extism_plugin_call(context, plugin, funcNameAddr, strAddr, strAddr.byteSize());
+    public static class Extism {
 
-            var outputBytes = extism_h.extism_plugin_output_data(context, plugin);
+        static {
+            System.loadLibrary("extism");
+        }
 
-            var output = outputBytes.getUtf8String(0);
+        public static String executeFunction(Path wasmPath, String functionName, String input) throws Exception {
 
-            System.out.println(output);
+            Addressable context = null;
+            int plugin = 0;
 
-            extism_h.extism_plugin_free(context, plugin);
-            extism_h.extism_context_free(context);
+            try (var scope = ResourceScope.newConfinedScope()) {
+                var scopedAllocator = SegmentAllocator.nativeAllocator(scope);
+                var wasmBytesLength = Files.size(wasmPath);
+                var mappedWasm = MemorySegment.mapFile(wasmPath, 0, wasmBytesLength, FileChannel.MapMode.READ_ONLY,
+                        scope);
+                context = extism_h.extism_context_new();
+                plugin = extism_h.extism_plugin_new(context, mappedWasm.address(), wasmBytesLength, false);
+
+                var funcNameAddr = scopedAllocator.allocateUtf8String(functionName);
+                var inputAddr = scopedAllocator.allocateUtf8String(input);
+                var result = extism_h.extism_plugin_call(context, plugin, funcNameAddr, inputAddr,
+                        inputAddr.byteSize());
+
+                var outputBytes = extism_h.extism_plugin_output_data(context, plugin);
+                var output = outputBytes.getUtf8String(0);
+                return output;
+            } finally {
+                if (context != null) {
+                    extism_h.extism_plugin_free(context, plugin);
+                    extism_h.extism_context_free(context);
+                }
+            }
         }
     }
 
